@@ -17,6 +17,7 @@
 
 // A server to receive HttpRequest and send back HttpResponse.
 
+#include <iostream>
 #include <gflags/gflags.h>
 #include <butil/logging.h>
 #include <brpc/server.h>
@@ -53,10 +54,16 @@ public:
         // Fill response.
         cntl->http_response().set_content_type("text/plain");
         butil::IOBufBuilder os;
-        os << "queries:";
+        os << "uri: ";
+        os << cntl->http_request().uri();
+        os << "\nqueries:";
         for (brpc::URI::QueryIterator it = cntl->http_request().uri().QueryBegin();
                 it != cntl->http_request().uri().QueryEnd(); ++it) {
             os << ' ' << it->first << '=' << it->second;
+        }
+        os << "\nheaders:";
+        for (auto it = cntl->http_request().HeaderBegin(); it != cntl->http_request().HeaderEnd(); ++it) {
+            os << ' ' << it->first << "=" << it->second;
         }
         os << "\nbody: " << cntl->request_attachment() << '\n';
         os.move_to(cntl->response_attachment());

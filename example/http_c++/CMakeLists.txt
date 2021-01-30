@@ -145,11 +145,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 endif()
 
 add_executable(http_client http_client.cpp)
+add_executable(http_client_via_rpc http_client_via_rpc.cpp ${PROTO_SRC} ${PROTO_HEADER})
 add_executable(http_server http_server.cpp ${PROTO_SRC} ${PROTO_HEADER})
 add_executable(benchmark_http benchmark_http.cpp)
 
 target_link_libraries(http_server ${BRPC_LIB} ${DYNAMIC_LIB} ${GPERFTOOLS_LIBRARIES})
 target_link_libraries(http_client ${BRPC_LIB} ${DYNAMIC_LIB} ${GPERFTOOLS_LIBRARIES})
+target_link_libraries(http_client_via_rpc ${BRPC_LIB} ${DYNAMIC_LIB} ${GPERFTOOLS_LIBRARIES})
 target_link_libraries(benchmark_http ${BRPC_LIB} ${DYNAMIC_LIB} ${GPERFTOOLS_LIBRARIES})
 
 file(COPY ${PROJECT_SOURCE_DIR}/key.pem
