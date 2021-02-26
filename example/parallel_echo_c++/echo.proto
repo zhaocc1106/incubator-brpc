@@ -26,6 +26,7 @@ message EchoRequest {
 
 message EchoResponse {
       required int32 value = 1;
+      repeated int32 values = 2;
 };
 
 service EchoService {

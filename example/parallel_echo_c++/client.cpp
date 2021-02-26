@@ -38,7 +38,7 @@ DEFINE_string(protocol, "baidu_std", "Protocol type. Defined in src/brpc/options
 DEFINE_string(server, "0.0.0.0:8002", "IP Address of server");
 DEFINE_string(load_balancer, "", "The algorithm for load balancing");
 DEFINE_int32(timeout_ms, 100, "RPC timeout in milliseconds");
-DEFINE_int32(max_retry, 3, "Max retries(not including the first RPC)"); 
+DEFINE_int32(max_retry, 3, "Max retries(not including the first RPC)");
 DEFINE_bool(dont_fail, false, "Print fatal when some call failed");
 DEFINE_int32(dummy_port, -1, "Launch dummy server at this port");
 
@@ -78,19 +78,48 @@ static void* sender(void* arg) {
                     g_sub_channel_latency[i] << cntl.sub(i)->latency_us();
                 }
             }
+            LOG(INFO) << "request.value: " << request.value() << ", response.value: " << response.value() <<
+                      ", reponse.values.size: " << response.values().size();
+            // for (auto& val : response.values()) {
+            //     LOG(INFO) << val;
+            // }
         } else {
             g_error_count << 1;
             CHECK(brpc::IsAskedToQuit() || !FLAGS_dont_fail)
-                << "error=" << cntl.ErrorText() << " latency=" << cntl.latency_us();
+            << "error=" << cntl.ErrorText() << " latency=" << cntl.latency_us();
             // We can't connect to the server, sleep a while. Notice that this
             // is a specific sleeping to prevent this thread from spinning too
             // fast. You should continue the business logic in a production 
             // server rather than sleeping.
             bthread_usleep(50000);
         }
+
     }
     return NULL;
 }
+
+class Broadcaster : public brpc::CallMapper {
+public:
+    brpc::SubCall Map(int channel_index/*starting from 0*/,
+                      const google::protobuf::MethodDescriptor* method,
+                      const google::protobuf::Message* request,
+                      google::protobuf::Message* response) override {
+        // method/request和pchan保持一致，response是new出来的，最后的flag告诉pchan在RPC结束后删除Response。
+        // LOG(INFO) << "[CallMapper-map] channel_index: " << channel_index << ", method: " << method->full_name()
+        //           << ", request: " << request->GetTypeName() << ", response: " << response->GetTypeName();
+        return brpc::SubCall(method, request, response->New(), brpc::DELETE_RESPONSE);
+    }
+};
+
+class MyReponseMerger : public brpc::ResponseMerger {
+public:
+    Result Merge(google::protobuf::Message* response, const google::protobuf::Message* sub_response) {
+        LOG(INFO) << "[ResponseMerger] response: " << response->GetTypeName() << ", sub_response: " <<
+                  sub_response->GetTypeName();
+        response->MergeFrom(*sub_response); // 多个channel的protobuf repeated字段被连接起来，普通字段被覆盖
+        return MERGED;
+    }
+};
 
 int main(int argc, char* argv[]) {
     // Parse gflags. We recommend you to use gflags as well.
@@ -110,8 +139,11 @@ int main(int argc, char* argv[]) {
     sub_options.protocol = FLAGS_protocol;
     sub_options.connection_type = FLAGS_connection_type;
     sub_options.max_retry = FLAGS_max_retry;
-    // Setting sub_options.timeout_ms does not work because timeout of sub 
+    // Setting sub_options.timeout_ms does not work because timeout of sub
     // channels are disabled in ParallelChannel.
+
+    Broadcaster broadcaster;
+    MyReponseMerger response_merger;
 
     if (FLAGS_same_channel) {
         // For brpc >= 1.0.155.31351, a sub channel can be added into
@@ -125,7 +157,7 @@ int main(int argc, char* argv[]) {
         }
         for (int i = 0; i < FLAGS_channel_num; ++i) {
             if (channel.AddChannel(sub_channel, brpc::OWNS_CHANNEL,
-                                   NULL, NULL) != 0) {
+                                   &broadcaster, &response_merger) != 0) {
                 LOG(ERROR) << "Fail to AddChannel, i=" << i;
                 return -1;
             }
@@ -140,7 +172,7 @@ int main(int argc, char* argv[]) {
                 return -1;
             }
             if (channel.AddChannel(sub_channel, brpc::OWNS_CHANNEL,
-                                   NULL, NULL) != 0) {
+                                   &broadcaster, &response_merger) != 0) {
                 LOG(ERROR) << "Fail to AddChannel, i=" << i;
                 return -1;
             }
@@ -194,13 +226,13 @@ int main(int argc, char* argv[]) {
         LOG(INFO) << "Sending EchoRequest at qps=" << g_latency_recorder.qps(1)
                   << " latency=" << g_latency_recorder.latency(1) << noflush;
         for (int i = 0; i < FLAGS_channel_num; ++i) {
-            LOG(INFO) << " latency_" << i << "=" 
+            LOG(INFO) << " latency_" << i << "="
                       << g_sub_channel_latency[i].latency(1)
                       << noflush;
         }
         LOG(INFO);
     }
-    
+
     LOG(INFO) << "EchoClient is going to quit";
     for (int i = 0; i < FLAGS_thread_num; ++i) {
         if (!FLAGS_use_bthread) {

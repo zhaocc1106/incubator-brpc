@@ -46,6 +46,7 @@ public:
 
         // Echo request and its attachment
         response->set_value(request->value());
+        response->add_values(request->value());
         if (FLAGS_echo_attachment) {
             cntl->response_attachment().append(cntl->request_attachment());
         }
