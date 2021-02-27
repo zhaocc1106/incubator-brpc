@@ -77,7 +77,10 @@ int main(int argc, char* argv[]) {
     cntl.http_request().AppendHeader("sessionid", "123456789");
     // Body.
     if (!FLAGS_d.empty()) {
-        cntl.request_attachment().append(FLAGS_d);
+        butil::IOBufBuilder os;
+        os << "This is body: " << FLAGS_d;
+        // cntl.request_attachment().append(FLAGS_d);
+        os.move_to(cntl.request_attachment());
     }
 
     // We will receive response synchronously, safe to put variables on stack.
