@@ -40,6 +40,12 @@ public:
             os << "msg[" << i << "]=" << *messages[i];
         }
         LOG(INFO) << "Received from Stream=" << id << ": " << os.str();
+        butil::IOBuf msg1;
+        msg1.append("abcdefghijklmnopqrstuvwxyz");
+        CHECK_EQ(0, brpc::StreamWrite(id, msg1));
+        butil::IOBuf msg2;
+        msg2.append("0123456789");
+        CHECK_EQ(0, brpc::StreamWrite(id, msg2));
         return 0;
     }
     virtual void on_idle_timeout(brpc::StreamId id) {

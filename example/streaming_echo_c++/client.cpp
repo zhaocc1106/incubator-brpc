@@ -27,7 +27,28 @@ DEFINE_bool(send_attachment, true, "Carry attachment along with requests");
 DEFINE_string(connection_type, "", "Connection type. Available values: single, pooled, short");
 DEFINE_string(server, "0.0.0.0:8001", "IP Address of server");
 DEFINE_int32(timeout_ms, 100, "RPC timeout in milliseconds");
-DEFINE_int32(max_retry, 3, "Max retries(not including the first RPC)"); 
+DEFINE_int32(max_retry, 3, "Max retries(not including the first RPC)");
+
+class StreamReceiver : public brpc::StreamInputHandler {
+public:
+    virtual int on_received_messages(brpc::StreamId id,
+                                     butil::IOBuf *const messages[],
+                                     size_t size) {
+        std::ostringstream os;
+        for (size_t i = 0; i < size; ++i) {
+            os << "msg[" << i << "]=" << *messages[i];
+        }
+        LOG(INFO) << "Received from Stream=" << id << ": " << os.str();
+        return 0;
+    }
+    virtual void on_idle_timeout(brpc::StreamId id) {
+        LOG(INFO) << "Stream=" << id << " has no data transmission for a while";
+    }
+    virtual void on_closed(brpc::StreamId id) {
+        LOG(INFO) << "Stream=" << id << " is closed";
+    }
+
+};
 
 int main(int argc, char* argv[]) {
     // Parse gflags. We recommend you to use gflags as well.
@@ -53,7 +74,10 @@ int main(int argc, char* argv[]) {
     example::EchoService_Stub stub(&channel);
     brpc::Controller cntl;
     brpc::StreamId stream;
-    if (brpc::StreamCreate(&stream, cntl, NULL) != 0) {
+    StreamReceiver _receiver;
+    brpc::StreamOptions stream_options;
+    stream_options.handler = &_receiver;
+    if (brpc::StreamCreate(&stream, cntl, &stream_options) != 0) {
         LOG(ERROR) << "Fail to create stream";
         return -1;
     }
