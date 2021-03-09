@@ -36,6 +36,7 @@ int main(int argc, char** argv) {
     bthread::execution_queue_execute(eq_id, 5, &bthread::TASK_OPTIONS_URGENT, &task_handle); // 设置task handler
     // bthread::execution_queue_cancel(task_handle); // 通过handler可以取消某个task
 
+    /* 第二个execution queue. */
     bthread::ExecutionQueue<int>::id_t eq_id2;
     bthread::execution_queue_start(&eq_id2, nullptr, demo_execute, &eq_id2);
     bthread::execution_queue_execute(eq_id2, 1, nullptr);
