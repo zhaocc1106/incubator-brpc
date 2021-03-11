@@ -1,5 +1,6 @@
 //
-// Created by zhaochaochao on 2021/3/9.
+// Execution queue用法.
+// https://github.com/zhaocc1106/incubator-brpc/blob/master/docs/cn/execution_queue.md
 //
 
 #include <bthread/execution_queue.h>
